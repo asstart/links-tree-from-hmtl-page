@@ -2,7 +2,7 @@
 
 Simple tool to build file with links from webpage devided by headers
 
-##Usage
+## Usage
 
 ```ssh
     python linktree.py --link http:some_webpage_address
