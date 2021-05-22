@@ -1,0 +1,12 @@
+[tool.poetry]
+name = "links-tree-from-html-page"
+version = "0.1.0"
+description = ""
+authors = ["Astashov Artem <asst.artem@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+beautifulsoup4 = "^4.9.3"
+requests = "^2.25.1"
+click="^8.0.0"

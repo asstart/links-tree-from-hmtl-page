@@ -1,7 +1,7 @@
 import requests
-import bs4
-from bs4 import BeautifulSoup
 import re
+from bs4 import BeautifulSoup
+from bs4.element import Tag, ResultSet
 from typing import List, Union, Dict
 
 
@@ -13,13 +13,13 @@ def load_page(url: str) -> str:
         response.raise_for_status()
 
 
-def get_articles(page_str: str) -> List[bs4.Tag]:
+def get_articles(page_str: str) -> List[Tag]:
     parsed_page = BeautifulSoup(page_str, 'html.parser')
     top_headers = find_top_headers(1, parsed_page)
     return top_headers
 
 
-def find_top_headers(header_level: int, parsed_page: BeautifulSoup) -> bs4.element.ResultSet:
+def find_top_headers(header_level: int, parsed_page: BeautifulSoup) -> ResultSet:
     headers = parsed_page.find_all("h{}".format(header_level))
     if not headers and header_level < 6:
         return find_top_headers(header_level + 1, parsed_page)
@@ -27,22 +27,22 @@ def find_top_headers(header_level: int, parsed_page: BeautifulSoup) -> bs4.eleme
         return headers
 
 
-def find_links_for_article(tag: bs4.Tag) -> List[bs4.Tag]:
+def find_links_for_article(tag: Tag) -> List[Tag]:
     links = tag.find_all(href=re.compile(".*"))
     valid_links = list(filter(lambda l: is_link_valid(l), links))
     return valid_links
 
 
-def is_link_valid(link: bs4.Tag) -> bool:
+def is_link_valid(link: Tag) -> bool:
     return link is not None and \
            re.compile("^https?://.+$").fullmatch(link["href"]) is not None
 
 
-def find_nearest_header_for_link(link: bs4.Tag) -> Union[bs4.Tag, None]:
+def find_nearest_header_for_link(link: Tag) -> Union[Tag, None]:
     return find_nearest_header(link, 6)
 
 
-def find_nearest_header(tag: bs4.Tag, header_level: int) -> Union[bs4.Tag, None]:
+def find_nearest_header(tag: Tag, header_level: int) -> Union[Tag, None]:
     sibling_header = None
     for parent in tag.parents:
         sibling_header = parent.find_previous_siblings("h{}".format(header_level))
@@ -65,15 +65,19 @@ def get_links_tree(url: str) -> dict:
     return result
 
 
-def build_links_tree_for_articles(links_by_article: Dict[bs4.Tag, List[bs4.Tag]]) -> Dict[
-    bs4.Tag, Dict[bs4.Tag, List[bs4.Tag]]]:
+def make_links_tree_file(link: str, path: str):
+    save_as_md(links_tree_to_markdown(get_links_tree(link)), path)
+
+
+def build_links_tree_for_articles(links_by_article: Dict[Tag, List[Tag]]) -> Dict[
+    Tag, Dict[Tag, List[Tag]]]:
     result = {}
     for article, links in links_by_article.items():
         result[article] = find_nearest_headers_for_links(links)
     return result
 
 
-def find_nearest_headers_for_links(links: List[bs4.Tag]) -> Dict[bs4.Tag, List[bs4.Tag]]:
+def find_nearest_headers_for_links(links: List[Tag]) -> Dict[Tag, List[Tag]]:
     header_links = {}
     for link in links:
         nearest_header = find_nearest_header_for_link(link)
@@ -86,7 +90,7 @@ def find_nearest_headers_for_links(links: List[bs4.Tag]) -> Dict[bs4.Tag, List[b
     return header_links
 
 
-def get_links_by_articles(articles_of_page: List[bs4.Tag]) -> Dict[bs4.Tag, List[bs4.Tag]]:
+def get_links_by_articles(articles_of_page: List[Tag]) -> Dict[Tag, List[Tag]]:
     links = {}
     for article in articles_of_page:
         links[article] = find_links_for_article(article.parent)
@@ -100,12 +104,13 @@ def links_tree_to_markdown(links_tree: dict) -> str:
 def build_md(links_tree: dict, header_str: str) -> str:
     if type(links_tree) is list:
         for link in links_tree:
-            header_str += '[{}]({})\n\n'.format(format_tag_name(link.string), link['href'])
+            if link.string:
+                header_str += '[{}]({})\n\n'.format(format_tag_name(link.string), link['href'])
         return header_str
     else:
         for k, v in links_tree.items():
-            if k is None:
-                header_str += "No content"
+            if k is None or k.string is None:
+                header_str += ''
             elif k.name == 'h1':
                 header_str += '# {}\n'.format(format_tag_name(k.string))
             elif k.name == 'h2':
@@ -126,4 +131,14 @@ def format_tag_name(header: str) -> str:
     if header is None:
         return "Content not found"
     else:
-        return header.strip()
+        special_chars_re = re.compile('[\\n\\r]')
+        spaces_re = re.compile('[\\s]+')
+        header = header.strip()
+        header = special_chars_re.sub('', header)
+        header = spaces_re.sub(' ', header)
+        return header
+
+
+def save_as_md(text: str, path: str) -> None:
+    with open(path, mode="w") as f:
+        f.write(text)
